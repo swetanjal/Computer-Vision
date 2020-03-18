@@ -3,6 +3,10 @@ import numpy as np
 import networkx as nx
 from sklearn import mixture
 from networkx.algorithms.flow import shortest_augmenting_path
+
+gamma = 1
+comp = 5
+four_neighbourhood = True
 def init_alphas(img, roi):
     # alpha = 1 for foreground
     # alpha = 0 for background
@@ -29,8 +33,8 @@ def initGMM(img, alphas):
                 fg.append(img[i][j])
             else:
                 bg.append(img[i][j])
-    bg_GMM = getMixtureModel(bg, 5)
-    fg_GMM = getMixtureModel(fg, 5)
+    bg_GMM = getMixtureModel(bg, comp)
+    fg_GMM = getMixtureModel(fg, comp)
     return fg_GMM, bg_GMM
 
 def negative_log_likelihood(d, clf):
@@ -48,7 +52,7 @@ def getPenalty(img, clf):
     return penalty
 
 def getBinaryPotential(a, b, beta):
-    return np.exp(-1.0 * beta * np.sum((a - b) ** 2))
+    return gamma * np.exp(-1.0 * beta * np.sum((a - b) ** 2))
 
 def createGraph(img, fg_penalty, bg_penalty, alphas):
     G = nx.Graph()
@@ -61,7 +65,7 @@ def createGraph(img, fg_penalty, bg_penalty, alphas):
             G.add_node((i, j))
             for k in range(-1, 2):
                 for l in range(-1, 2):
-                    if abs(k) + abs(l) == 0 or abs(k) + abs(l) > 1:
+                    if abs(k) + abs(l) == 0 or (abs(k) + abs(l) > 1 and four_neighbourhood == True):
                         # Not a 4 neighbour
                         # Center
                         continue
@@ -81,7 +85,7 @@ def createGraph(img, fg_penalty, bg_penalty, alphas):
                 G.add_edge((i, j), 't', capacity = fg_penalty[i][j])
             for k in range(-1, 2):
                 for l in range(-1, 2):
-                    if abs(k) + abs(l) == 0 or abs(k) + abs(l) > 1:
+                    if abs(k) + abs(l) == 0 or (abs(k) + abs(l) > 1 and four_neighbourhood == True):
                         # Not a 4 neighbour
                         # Center
                         continue
@@ -91,18 +95,39 @@ def createGraph(img, fg_penalty, bg_penalty, alphas):
                     G.add_edge((i, j), (i + k, j + l), capacity = getBinaryPotential(img[i][j], img[i + k][j + l], beta))
     return G
 
-def main(img_name):
-    img = cv2.imread('../input_data/images/' + img_name + '.jpg')
-    f = open('../input_data/bboxes/' + img_name + '.txt', 'r')
-    f = f.readlines()
-    roi = []
-    for _ in f:
-        _ = _.split()
-        roi = [int(_[0]), int(_[1]), int(_[2]), int(_[3])]
+def main(img_name, GAMMA = 1, COMP = 5, ITR = 16, space = 'rgb', four_connectivity = True):
+    global four_neighbourhood
+    if four_connectivity == False:
+        four_neighbourhood = False
+    else:
+        four_neighbourhood = True
+    global gamma
+    gamma = GAMMA
+    global comp
+    comp = COMP
+    img = cv2.imread(img_name)
+    # f = open('../input_data/bboxes/' + img_name + '.txt', 'r')
+    # f = f.readlines()
+    # roi = []
+    # for _ in f:
+    #     _ = _.split()
+    #     roi = [int(_[0]), int(_[1]), int(_[2]), int(_[3])]
+    #print(roi)
+    r = cv2.selectROI(img, fromCenter = False)
+    roi = [r[0], r[1], r[0] + r[2], r[1] + r[3]]
+    #print(roi)
+    if space == 'rgb':
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    elif space == 'lab':
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+    elif space == 'ycr_cb':
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
+    else:
+        assert(False)
     roi_img = np.zeros(img.shape)
     alphas = init_alphas(img, roi)
     itr = 0
-    while itr < 10:
+    while itr < ITR:
         itr = itr + 1
         print("Iteration " + str(itr))
         fg_GMM, bg_GMM = initGMM(img, alphas)
@@ -115,12 +140,19 @@ def main(img_name):
         for px in reachable:
             if px != 's':
                 alphas[px[0]][px[1]] = 1
-    
-    for i in range(img.shape[0]):
-        for j in range(img.shape[1]):
-            if alphas[i][j] == 1:
-                roi_img[i][j] = img[i][j]
-    roi_img = roi_img.astype(np.uint8)
-    cv2.imshow('', roi_img)
+        roi_img = np.zeros(img.shape)
+        for i in range(img.shape[0]):
+            for j in range(img.shape[1]):
+                if alphas[i][j] == 1:
+                    roi_img[i][j] = img[i][j]
+        roi_img = roi_img.astype(np.uint8)
+    if space == 'rgb':
+        roi_img = cv2.cvtColor(roi_img, cv2.COLOR_RGB2BGR)
+    elif space == 'lab':
+        roi_img = cv2.cvtColor(roi_img, cv2.COLOR_LAB2BGR)
+    elif space == 'ycr_cb':
+        roi_img = cv2.cvtColor(roi_img, cv2.COLOR_YCR_CB2BGR)
+    cv2.imshow('Segmented Image', roi_img)
     cv2.waitKey()
-main('teddy')
+
+main('../input_data/images/elefant.jpg', GAMMA = 50, space = 'rgb', ITR = 5, four_connectivity = True)
