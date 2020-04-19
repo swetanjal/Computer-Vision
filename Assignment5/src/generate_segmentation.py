@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from scipy import signal
 import os
 import copy
-
+import sys
 def convolve(im, k):
     # return signal.convolve2d(im, k, boundary='symm', mode='same')
     im = im.astype(np.float64)
@@ -56,14 +56,14 @@ def optical_flow(img1, img2, threshold):
     'Sobel X', 'Sobel Y', 'Derivative in t', 'Optical Flow in X direction', 'Optical Flow in Y Direction', \
     'Norm', 'Angle', 'Optical Flow Mask'
 
-def process_video(frame_folder, output_folder):
+def process_video():
     roi = -1
-    files = os.listdir(frame_folder)
+    files = os.listdir(sys.argv[1])
     files.sort()
     kp = []
     for i in range(len(files) - 1):
-        img1 = cv2.imread(frame_folder + '/' + files[i], cv2.IMREAD_GRAYSCALE)
-        img2 = cv2.imread(frame_folder + '/' + files[i + 1], cv2.IMREAD_GRAYSCALE)
+        img1 = cv2.imread(sys.argv[1] + '/' + files[i], cv2.IMREAD_GRAYSCALE)
+        img2 = cv2.imread(sys.argv[1] + '/' + files[i + 1], cv2.IMREAD_GRAYSCALE)
         new_kp = []
         if i == 0:
             #r = cv2.selectROI(img1, fromCenter = False)
@@ -80,7 +80,7 @@ def process_video(frame_folder, output_folder):
             #         img1 = cv2.circle(img1, (x, y), 5, (0, 0, 255), 2)
             # kp = copy.deepcopy(new_kp)
             print("Done with a frame!")
-            cv2.imwrite(output_folder + '/' + files[i], mask)
+            cv2.imwrite(sys.argv[2] + '/' + files[i], mask)
         else:
             outputx, outputy, outputt, u, v, magnitude, angle, mask, label1, label2, label3, label4, label5, label6, \
             label7, label8 = optical_flow(img1, img2, 4)
@@ -92,6 +92,6 @@ def process_video(frame_folder, output_folder):
             #     img1 = cv2.circle(img1, (x, y), 5, (0, 0, 255), 2)
             # kp = copy.deepcopy(new_kp)
             print("Done with a frame!")
-            cv2.imwrite(output_folder + '/' + files[i], mask)
+            cv2.imwrite(sys.argv[2] + '/' + files[i], mask)
 
-process_video('/home/tapas/Desktop/frames', '/home/tapas/Desktop/output')
+process_video()
